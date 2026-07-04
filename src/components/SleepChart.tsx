@@ -50,21 +50,24 @@ export default function SleepChart({ data, title, color }: SleepChartProps) {
   const nightColor = color === "blue" ? "#3b82f6" : "#ec4899";
 
   return (
-    <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-      <h3 className="text-lg font-semibold text-zinc-100 mb-4">{title}</h3>
-      <ResponsiveContainer width="100%" height={300}>
+    <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl sm:rounded-2xl p-3 sm:p-6">
+      <h3 className="text-sm sm:text-lg font-semibold text-zinc-100 mb-2 sm:mb-4">{title}</h3>
+      <div className="h-[220px] sm:h-[300px]">
+      <ResponsiveContainer width="100%" height="100%">
         <BarChart data={chartData} barGap={0} barCategoryGap="20%">
           <CartesianGrid strokeDasharray="3 3" stroke="#333" />
           <XAxis
             dataKey="date"
             stroke="#888"
-            fontSize={11}
+            fontSize={10}
             tickLine={false}
             interval="preserveStartEnd"
+            tick={{ fontSize: 9 }}
           />
           <YAxis
             stroke="#888"
-            fontSize={11}
+            fontSize={10}
+            width={30}
             tickLine={false}
             tickFormatter={(v: number) => `${Math.round(v / 3600)}h`}
           />
@@ -88,6 +91,7 @@ export default function SleepChart({ data, title, color }: SleepChartProps) {
           />
         </BarChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

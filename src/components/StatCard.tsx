@@ -10,13 +10,13 @@ export default function StatCard({ label, value, subtext, color = "blue" }: Stat
   const valueColor = color === "blue" ? "text-blue-400" : "text-pink-400";
 
   return (
-    <div className={`bg-zinc-900/50 border ${borderColor} rounded-xl p-4`}>
-      <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">
+    <div className={`bg-zinc-900/50 border ${borderColor} rounded-xl p-2.5 sm:p-4`}>
+      <p className="text-zinc-500 text-[9px] sm:text-xs font-medium uppercase tracking-wider leading-tight">
         {label}
       </p>
-      <p className={`text-2xl font-bold ${valueColor} mt-1`}>{value}</p>
+      <p className={`text-lg sm:text-2xl font-bold ${valueColor} mt-0.5 sm:mt-1`}>{value}</p>
       {subtext && (
-        <p className="text-zinc-500 text-xs mt-1">{subtext}</p>
+        <p className="text-zinc-500 text-[9px] sm:text-xs mt-0.5 sm:mt-1">{subtext}</p>
       )}
     </div>
   );
