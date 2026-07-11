@@ -7,6 +7,7 @@ import TotalSleepChart from "./TotalSleepChart";
 import LongestStretchChart from "./LongestStretchChart";
 import NapCountChart from "./NapCountChart";
 import StatCard from "./StatCard";
+import DailySummary from "./DailySummary";
 import { TwinData, formatDuration } from "@/lib/snoo-client";
 import { Moon, Sun, Baby, RefreshCw } from "lucide-react";
 
@@ -159,6 +160,9 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* 24h written summary */}
+        <DailySummary data={data} />
+
         {/* Stats per twin */}
         {twins.map((twin, idx) => {
           const avg = computeAverages(twin);
