@@ -64,9 +64,60 @@ sending them — useful to validate the level detection before wiring up Twilio.
 
 ## Deploying
 
-Run it anywhere that keeps a process alive: a small VPS, a Docker container,
-Railway/Fly/Render, or a systemd service. It holds a single outbound polling
-loop and needs no inbound ports.
+Run it anywhere that keeps a process alive. It holds a single **outbound**
+polling loop, needs **no inbound ports**, no database, and no persistent disk —
+so the cheapest always-on option works fine. Pick one:
+
+### Option A — Docker (recommended)
+
+The included `Dockerfile` builds a minimal image (no runtime deps).
+
+```bash
+cd snoo-alerts
+cp .env.example .env          # fill in HAPPIESTBABY_* (and TWILIO_* to go live)
+docker build -t snoo-alerts .
+docker run -d --name snoo-alerts --restart unless-stopped --env-file .env snoo-alerts
+docker logs -f snoo-alerts    # watch alerts
+```
+
+Or with Compose (`docker-compose.yml` is included):
+
+```bash
+cd snoo-alerts
+cp .env.example .env
+docker compose up -d --build
+docker compose logs -f
+```
+
+### Option B — systemd (VPS / Raspberry Pi)
+
+A ready unit file is at `deploy/snoo-alerts.service`.
+
+```bash
+sudo mkdir -p /opt/snoo-alerts && sudo cp -r . /opt/snoo-alerts
+cd /opt/snoo-alerts && npm install && npm run build
+sudo cp .env.example /etc/snoo-alerts.env   # edit it, then: sudo chmod 600 /etc/snoo-alerts.env
+sudo cp deploy/snoo-alerts.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now snoo-alerts
+journalctl -u snoo-alerts -f                 # watch alerts
+```
+
+### Option C — Railway / Fly / Render (managed, no server to manage)
+
+Point the platform at the `snoo-alerts/` directory (it auto-detects the
+Dockerfile), set the env vars in the dashboard, and deploy it as a **worker /
+background service** (not a web service — there's no HTTP port). Set the restart
+policy to always-on. On Railway, for example: New Project → Deploy from repo →
+set Root Directory to `snoo-alerts` → add variables → deploy.
+
+### Sanity check before going live
+
+Run once in the foreground and confirm you see your Snoos and their current
+levels; it stays in dry-run (console) mode until `TWILIO_*` is set:
+
+```bash
+docker run --rm --env-file .env snoo-alerts   # Ctrl-C to stop
+```
 
 > Note: this uses Happiest Baby's undocumented cloud API (reverse-engineered).
 > Endpoints/keys may change without notice.
