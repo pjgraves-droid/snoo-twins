@@ -1,0 +1,10 @@
+services:
+  snoo-alerts:
+    build: .
+    image: snoo-alerts:latest
+    container_name: snoo-alerts
+    restart: unless-stopped
+    # Put your HAPPIESTBABY_* and (optional) TWILIO_* vars in a .env file
+    # next to this compose file. See .env.example.
+    env_file:
+      - .env
