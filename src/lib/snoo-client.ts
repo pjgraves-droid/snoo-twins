@@ -370,6 +370,13 @@ function computeWindows(
 
   const ms = (date: string, hhmmss: string) => localMs(`${date} ${hhmmss}`);
 
+  // "Today" runs from 7am until now, but caps at 7pm — once the evening starts
+  // the section shows the full 7am–7pm daytime rather than creeping into night.
+  const todayStart = ms(today, "07:00:00");
+  const todayCap = ms(today, "19:00:00");
+  const pastSevenPm = nowMs >= todayCap;
+  const todayEnd = Math.min(Math.max(nowMs, todayStart), todayCap);
+
   return [
     computeWindowStats(
       levels,
@@ -392,11 +399,11 @@ function computeWindows(
     computeWindowStats(
       levels,
       detailed,
-      ms(today, "07:00:00"),
-      Math.max(nowMs, ms(today, "07:00:00")),
+      todayStart,
+      todayEnd,
       "today",
       "Today",
-      "7am–now"
+      pastSevenPm ? "7am–7pm" : "7am–now"
     ),
   ];
 }
