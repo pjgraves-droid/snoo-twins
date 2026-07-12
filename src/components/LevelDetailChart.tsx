@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   BarChart,
   Bar,
@@ -12,6 +13,7 @@ import {
   TooltipProps,
 } from "recharts";
 import { DailyData, LEVEL_ORDER } from "@/lib/snoo-client";
+import ChartModeToggle, { ChartMode } from "./ChartModeToggle";
 
 interface LevelDetailChartProps {
   data: DailyData[];
@@ -65,6 +67,8 @@ function CustomTooltip({ active, payload, label }: TooltipProps<number, string>)
 }
 
 export default function LevelDetailChart({ data, title }: LevelDetailChartProps) {
+  const [mode, setMode] = useState<ChartMode>("stacked");
+  const stacked = mode === "stacked";
   const chartData = data.map((d) => ({
     date: d.date.slice(5), // MM-DD
     ...d.levelSeconds,
@@ -72,14 +76,17 @@ export default function LevelDetailChart({ data, title }: LevelDetailChartProps)
 
   return (
     <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 sm:p-6">
-      <h3 className="text-base sm:text-lg font-semibold text-zinc-100 mb-1">
-        {title}
-      </h3>
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <h3 className="text-base sm:text-lg font-semibold text-zinc-100">
+          {title}
+        </h3>
+        <ChartModeToggle mode={mode} onChange={setMode} />
+      </div>
       <p className="text-zinc-500 text-xs mb-4">
         Time spent at each soothing level (how hard the Snoo worked each day)
       </p>
       <ResponsiveContainer width="100%" height={280}>
-        <BarChart data={chartData} barCategoryGap="20%">
+        <BarChart data={chartData} barGap={stacked ? 0 : 1} barCategoryGap="20%">
           <CartesianGrid strokeDasharray="3 3" stroke="#333" />
           <XAxis
             dataKey="date"
@@ -101,9 +108,13 @@ export default function LevelDetailChart({ data, title }: LevelDetailChartProps)
               key={lvl}
               dataKey={lvl}
               name={LEVEL_LABELS[lvl]}
-              stackId="levels"
+              stackId={stacked ? "levels" : undefined}
               fill={LEVEL_COLORS[lvl]}
-              radius={i === LEVEL_ORDER.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+              radius={
+                stacked && i !== LEVEL_ORDER.length - 1
+                  ? [0, 0, 0, 0]
+                  : [4, 4, 0, 0]
+              }
             />
           ))}
         </BarChart>

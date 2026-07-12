@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   BarChart,
   Bar,
@@ -12,6 +13,7 @@ import {
   TooltipProps,
 } from "recharts";
 import { DailyData } from "@/lib/snoo-client";
+import ChartModeToggle, { ChartMode } from "./ChartModeToggle";
 
 interface SleepChartProps {
   data: DailyData[];
@@ -40,6 +42,8 @@ function CustomTooltip({ active, payload, label }: TooltipProps<number, string>)
 }
 
 export default function SleepChart({ data, title, color }: SleepChartProps) {
+  const [mode, setMode] = useState<ChartMode>("stacked");
+  const stacked = mode === "stacked";
   const chartData = data.map((d) => ({
     date: d.date.slice(5), // MM-DD
     daySleep: d.daySleep,
@@ -51,9 +55,12 @@ export default function SleepChart({ data, title, color }: SleepChartProps) {
 
   return (
     <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-      <h3 className="text-lg font-semibold text-zinc-100 mb-4">{title}</h3>
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <h3 className="text-lg font-semibold text-zinc-100">{title}</h3>
+        <ChartModeToggle mode={mode} onChange={setMode} />
+      </div>
       <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={chartData} barGap={0} barCategoryGap="20%">
+        <BarChart data={chartData} barGap={stacked ? 0 : 4} barCategoryGap="20%">
           <CartesianGrid strokeDasharray="3 3" stroke="#333" />
           <XAxis
             dataKey="date"
@@ -76,14 +83,14 @@ export default function SleepChart({ data, title, color }: SleepChartProps) {
             dataKey="nightSleep"
             name="Night Sleep"
             fill={nightColor}
-            stackId="sleep"
-            radius={[0, 0, 0, 0]}
+            stackId={stacked ? "sleep" : undefined}
+            radius={stacked ? [0, 0, 0, 0] : [4, 4, 0, 0]}
           />
           <Bar
             dataKey="daySleep"
             name="Day Sleep"
             fill={dayColor}
-            stackId="sleep"
+            stackId={stacked ? "sleep" : undefined}
             radius={[4, 4, 0, 0]}
           />
         </BarChart>
