@@ -10,6 +10,7 @@ import LongestStretchChart from "./LongestStretchChart";
 import NapCountChart from "./NapCountChart";
 import StatCard from "./StatCard";
 import DailySummary from "./DailySummary";
+import AiSummary from "./AiSummary";
 import { TwinData, formatDuration } from "@/lib/snoo-client";
 import { Moon, Sun, Baby, RefreshCw, Phone } from "lucide-react";
 
@@ -218,7 +219,10 @@ export default function Dashboard() {
       )}
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-        {/* 24h written summary */}
+        {/* AI narrative summary */}
+        <AiSummary data={data} />
+
+        {/* Windowed written summary */}
         <DailySummary data={data} />
 
         {/* Stats per twin */}
