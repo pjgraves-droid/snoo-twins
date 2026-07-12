@@ -1,4 +1,4 @@
-import { TwinData, DailyData, formatDuration } from "./snoo-client";
+import { TwinData, DailyData, SnooLevel, formatDuration } from "./snoo-client";
 
 /** Like formatDuration but omits the hours segment when it's zero (e.g. "29m" not "0h 29m"). */
 function formatDurationCompact(seconds: number): string {
@@ -21,6 +21,28 @@ export interface TwinSummary {
   nightWakings: number;
   /** Change in total sleep vs the prior day, in seconds (null if no prior data) */
   totalSleepDelta: number | null;
+  /** Highest soothing level reached (null if no data). */
+  peakLevel: SnooLevel | null;
+  /** The three longest overnight sleep stretches, in seconds (desc). */
+  longestStretches: number[];
+}
+
+/** Human-friendly phrase describing the peak soothing level reached. */
+function peakLevelPhrase(name: string, peak: SnooLevel | null): string | null {
+  switch (peak) {
+    case "BASELINE":
+      return `${name} stayed calm all day — the Snoo never needed to go above baseline.`;
+    case "LEVEL1":
+      return `${name} only needed gentle soothing — the Snoo peaked at Level 1.`;
+    case "LEVEL2":
+      return `The Snoo escalated to Level 2 at its peak for ${name}.`;
+    case "LEVEL3":
+      return `The Snoo escalated to Level 3 at its peak for ${name}.`;
+    case "LEVEL4":
+      return `The Snoo reached its highest setting (Level 4) for ${name} at some point.`;
+    default:
+      return null;
+  }
 }
 
 export interface DailySummary {
@@ -77,6 +99,8 @@ export function buildDailySummary(data: TwinData[]): DailySummary {
       naps: day.naps,
       nightWakings: day.nightWakings,
       totalSleepDelta,
+      peakLevel: day.peakLevel,
+      longestStretches: day.longestStretches,
     });
   });
 
@@ -103,6 +127,18 @@ export function buildDailySummary(data: TwinData[]): DailySummary {
       s += ` That's ${formatDelta(t.totalSleepDelta)}.`;
     }
     sentences.push(s);
+
+    // Top overnight stretches (6pm–7am)
+    if (t.longestStretches.length > 0) {
+      const list = t.longestStretches
+        .map((sec, i) => `#${i + 1} ${formatDurationCompact(sec)}`)
+        .join(", ");
+      sentences.push(`${t.name}'s longest overnight stretches: ${list}.`);
+    }
+
+    // Peak soothing level reached
+    const peak = peakLevelPhrase(t.name, t.peakLevel);
+    if (peak) sentences.push(peak);
   }
 
   // Comparison sentence for twins

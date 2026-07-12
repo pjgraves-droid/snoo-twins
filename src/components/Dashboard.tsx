@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import SleepChart from "./SleepChart";
+import LevelDetailChart from "./LevelDetailChart";
+import OvernightStretchChart from "./OvernightStretchChart";
 import WakingsChart from "./WakingsChart";
 import TotalSleepChart from "./TotalSleepChart";
 import LongestStretchChart from "./LongestStretchChart";
@@ -224,6 +226,17 @@ export default function Dashboard() {
                 title={`${twin.label} — Day vs Night Sleep`}
                 color={colorName}
               />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                <LevelDetailChart
+                  data={twin.dailyData}
+                  title={`${twin.label} — Soothing Levels`}
+                />
+                <OvernightStretchChart
+                  data={twin.dailyData}
+                  title={`${twin.label} — Overnight Stretches`}
+                  color={colorName}
+                />
+              </div>
             </section>
           );
         })}
