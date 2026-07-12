@@ -1,9 +1,13 @@
-import { TwinData, formatDuration } from "@/lib/snoo-client";
+import { TwinData, SnooLevel, formatDuration } from "@/lib/snoo-client";
 import { buildDailySummary, summaryDateLabel } from "@/lib/summary";
 import { FileText } from "lucide-react";
 
 interface DailySummaryProps {
   data: TwinData[];
+}
+
+function peakLevelBadge(level: SnooLevel): string {
+  return level === "BASELINE" ? "baseline" : level.replace("LEVEL", "L");
 }
 
 export default function DailySummary({ data }: DailySummaryProps) {
@@ -31,15 +35,32 @@ export default function DailySummary({ data }: DailySummaryProps) {
                 key={t.name}
                 className={`bg-zinc-950/50 border ${borderColor} rounded-lg p-3`}
               >
-                <p className={`font-semibold ${valueColor} text-sm sm:text-base`}>
-                  {t.name}
-                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <p
+                    className={`font-semibold ${valueColor} text-sm sm:text-base`}
+                  >
+                    {t.name}
+                  </p>
+                  {t.peakLevel && (
+                    <span className="text-[9px] sm:text-[10px] font-medium px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 whitespace-nowrap">
+                      peak {peakLevelBadge(t.peakLevel)}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xl sm:text-2xl font-bold mt-1">
                   {formatDuration(t.totalSleep)}
                 </p>
                 <p className="text-zinc-500 text-[10px] sm:text-xs">
                   total sleep · {t.nightWakings} wakings
                 </p>
+                <div className="mt-2 flex items-center gap-3 text-[10px] sm:text-xs">
+                  <span className="text-indigo-300">
+                    Night {formatDuration(t.nightSleep)}
+                  </span>
+                  <span className="text-amber-300">
+                    Day {formatDuration(t.daySleep)}
+                  </span>
+                </div>
               </div>
             );
           })}
