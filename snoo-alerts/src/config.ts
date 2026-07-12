@@ -25,6 +25,12 @@ export interface Config {
    * to watch. Empty means watch every device on the account.
    */
   deviceFilter: string[];
+  /** IANA timezone the alert window hours are interpreted in. */
+  alertTimezone: string;
+  /** Hour (0-23, local) the alerting window opens. */
+  alertStartHour: number;
+  /** Hour (0-23, local) the alerting window closes (exclusive). */
+  alertEndHour: number;
   /** Twilio settings, or null to run in dry-run (console-only) mode. */
   twilio: TwilioConfig | null;
 }
@@ -43,6 +49,16 @@ function num(name: string, fallback: number): number {
   const n = Number(v);
   if (!Number.isFinite(n) || n <= 0) {
     throw new Error(`Environment variable ${name} must be a positive number, got "${v}"`);
+  }
+  return n;
+}
+
+function hour(name: string, fallback: number): number {
+  const v = process.env[name];
+  if (v === undefined || v === "") return fallback;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 0 || n > 23) {
+    throw new Error(`Environment variable ${name} must be an integer 0-23, got "${v}"`);
   }
   return n;
 }
@@ -92,6 +108,9 @@ export function loadConfig(): Config {
     sustainSeconds: num("SNOO_SUSTAIN_SECONDS", 30),
     cooldownSeconds: num("SNOO_COOLDOWN_SECONDS", 300),
     deviceFilter,
+    alertTimezone: process.env.SNOO_ALERT_TIMEZONE || "Australia/Sydney",
+    alertStartHour: hour("SNOO_ALERT_START_HOUR", 22),
+    alertEndHour: hour("SNOO_ALERT_END_HOUR", 7),
     twilio: loadTwilio(),
   };
 }
