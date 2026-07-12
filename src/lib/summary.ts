@@ -92,6 +92,76 @@ function comparisonSentence(twins: WindowTwinStat[]): string | null {
   )} more than ${less.name}.`;
 }
 
+const toMin = (seconds: number): number => Math.round(seconds / 60);
+
+export interface AiSummaryInput {
+  generatedAt: string;
+  timezone: string;
+  twins: {
+    name: string;
+    windows: {
+      label: string;
+      range: string;
+      totalSleepMin: number;
+      sleepSessions: number;
+      wakings: number;
+      longestStretchMin: number;
+      peakLevel: SnooLevel | null;
+      hasElapsed: boolean;
+    }[];
+    recentDays: {
+      date: string;
+      totalSleepMin: number;
+      nightMin: number;
+      dayMin: number;
+      longestStretchMin: number;
+      wakings: number;
+      naps: number;
+      peakLevel: SnooLevel | null;
+    }[];
+  }[];
+}
+
+/**
+ * Build a compact, PII-free stats payload (durations in minutes) to hand to the
+ * LLM. Includes the three windows plus a recent daily trend for pattern-spotting.
+ */
+export function buildAiSummaryInput(
+  data: TwinData[],
+  trendDays = 14
+): AiSummaryInput {
+  return {
+    generatedAt: new Date().toISOString(),
+    timezone: "Australia/Sydney",
+    twins: data.map((twin, i) => ({
+      name: twin.baby.babyName || `Baby ${i + 1}`,
+      windows: (twin.windows || []).map((w) => ({
+        label: w.label,
+        range: w.rangeLabel,
+        totalSleepMin: toMin(w.totalSleep),
+        sleepSessions: w.sleepSessions,
+        wakings: w.wakings,
+        longestStretchMin: toMin(w.longestStretch),
+        peakLevel: w.peakLevel,
+        hasElapsed: w.hasElapsed,
+      })),
+      recentDays: twin.dailyData
+        .filter((d) => d.totalSleep > 0)
+        .slice(-trendDays)
+        .map((d) => ({
+          date: d.date,
+          totalSleepMin: toMin(d.totalSleep),
+          nightMin: toMin(d.nightSleep),
+          dayMin: toMin(d.daySleep),
+          longestStretchMin: toMin(d.longestSleep),
+          wakings: d.nightWakings,
+          naps: d.naps,
+          peakLevel: d.peakLevel,
+        })),
+    })),
+  };
+}
+
 export function buildWindowSummary(data: TwinData[]): WindowSection[] {
   const twinMeta = data.map((twin, i) => ({
     name: twin.baby.babyName || `Baby ${i + 1}`,
