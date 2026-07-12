@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   BarChart,
   Bar,
@@ -12,6 +13,7 @@ import {
   TooltipProps,
 } from "recharts";
 import { DailyData } from "@/lib/snoo-client";
+import ChartModeToggle, { ChartMode } from "./ChartModeToggle";
 
 interface OvernightStretchChartProps {
   data: DailyData[];
@@ -58,6 +60,8 @@ export default function OvernightStretchChart({
   title,
   color,
 }: OvernightStretchChartProps) {
+  const [mode, setMode] = useState<ChartMode>("stacked");
+  const stacked = mode === "stacked";
   const chartData = data.map((d) => ({
     date: d.date.slice(5), // MM-DD
     s1: d.longestStretches[0] ?? 0,
@@ -73,14 +77,17 @@ export default function OvernightStretchChart({
 
   return (
     <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 sm:p-6">
-      <h3 className="text-base sm:text-lg font-semibold text-zinc-100 mb-1">
-        {title}
-      </h3>
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <h3 className="text-base sm:text-lg font-semibold text-zinc-100">
+          {title}
+        </h3>
+        <ChartModeToggle mode={mode} onChange={setMode} />
+      </div>
       <p className="text-zinc-500 text-xs mb-4">
-        Three longest continuous sleep stretches overnight (6pm–7am), stacked
+        Three longest continuous sleep stretches overnight (6pm–7am)
       </p>
       <ResponsiveContainer width="100%" height={280}>
-        <BarChart data={chartData} barCategoryGap="20%">
+        <BarChart data={chartData} barGap={stacked ? 0 : 1} barCategoryGap="20%">
           <CartesianGrid strokeDasharray="3 3" stroke="#333" />
           <XAxis
             dataKey="date"
@@ -102,9 +109,11 @@ export default function OvernightStretchChart({
               key={k}
               dataKey={k}
               name={LABELS[k]}
-              stackId="stretch"
+              stackId={stacked ? "stretch" : undefined}
               fill={shades[i]}
-              radius={i === KEYS.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+              radius={
+                stacked && i !== KEYS.length - 1 ? [0, 0, 0, 0] : [4, 4, 0, 0]
+              }
             />
           ))}
         </BarChart>
