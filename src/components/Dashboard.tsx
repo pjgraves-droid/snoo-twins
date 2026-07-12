@@ -2,11 +2,14 @@
 
 import { useEffect, useState, useCallback } from "react";
 import SleepChart from "./SleepChart";
+import LevelDetailChart from "./LevelDetailChart";
+import OvernightStretchChart from "./OvernightStretchChart";
 import WakingsChart from "./WakingsChart";
 import TotalSleepChart from "./TotalSleepChart";
 import LongestStretchChart from "./LongestStretchChart";
 import NapCountChart from "./NapCountChart";
 import StatCard from "./StatCard";
+import DailySummary from "./DailySummary";
 import { TwinData, formatDuration } from "@/lib/snoo-client";
 import { Moon, Sun, Baby, RefreshCw } from "lucide-react";
 
@@ -159,6 +162,9 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6 sm:space-y-8">
+        {/* 24h written summary */}
+        <DailySummary data={data} />
+
         {/* Stats per twin */}
         {twins.map((twin, idx) => {
           const avg = computeAverages(twin);
@@ -220,6 +226,17 @@ export default function Dashboard() {
                 title={`${twin.label} — Day vs Night Sleep`}
                 color={colorName}
               />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                <LevelDetailChart
+                  data={twin.dailyData}
+                  title={`${twin.label} — Soothing Levels`}
+                />
+                <OvernightStretchChart
+                  data={twin.dailyData}
+                  title={`${twin.label} — Overnight Stretches`}
+                  color={colorName}
+                />
+              </div>
             </section>
           );
         })}

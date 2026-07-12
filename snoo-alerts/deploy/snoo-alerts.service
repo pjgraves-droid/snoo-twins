@@ -1,0 +1,27 @@
+# systemd unit for running snoo-alerts on a Linux host (VPS, Raspberry Pi, etc.)
+#
+# Install:
+#   1. Build once:   cd /opt/snoo-alerts && npm install && npm run build
+#   2. Put your env in /etc/snoo-alerts.env (see .env.example; chmod 600 it).
+#   3. sudo cp deploy/snoo-alerts.service /etc/systemd/system/
+#   4. sudo systemctl daemon-reload && sudo systemctl enable --now snoo-alerts
+#   5. Logs:  journalctl -u snoo-alerts -f
+#
+# Adjust WorkingDirectory / User / paths to match your host.
+
+[Unit]
+Description=Snoo level-sustained alert worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=snoo
+WorkingDirectory=/opt/snoo-alerts
+EnvironmentFile=/etc/snoo-alerts.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

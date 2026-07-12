@@ -33,6 +33,25 @@ export interface SessionLevel {
   isActive: boolean;
 }
 
+/** A segment from the API's detailedLevels array (per-soothing-level breakdown). */
+export interface DetailedLevelEntry {
+  level: string;
+  stateDuration: number;
+  type?: string;
+  startTime?: string;
+}
+
+/** The five soothing levels a Snoo cycles through, ordered from calmest to strongest. */
+export const LEVEL_ORDER = [
+  "BASELINE",
+  "LEVEL1",
+  "LEVEL2",
+  "LEVEL3",
+  "LEVEL4",
+] as const;
+
+export type SnooLevel = (typeof LEVEL_ORDER)[number];
+
 export interface DailySession {
   totalSleep: number;
   daySleep: number;
@@ -41,6 +60,7 @@ export interface DailySession {
   naps: number;
   nightWakings: number;
   levels: SessionLevel[];
+  detailedLevels?: DetailedLevelEntry[];
   timezone: string | null;
 }
 
@@ -53,6 +73,12 @@ export interface DailyData {
   naps: number;
   nightWakings: number;
   sessions: SessionLevel[];
+  /** Seconds spent at each soothing level over the day (from detailedLevels). */
+  levelSeconds: Record<SnooLevel, number>;
+  /** Highest soothing level reached that day (null if no data). */
+  peakLevel: SnooLevel | null;
+  /** The three longest continuous overnight sleep stretches, in seconds (desc). */
+  longestStretches: number[];
 }
 
 export interface TwinData {
@@ -133,6 +159,72 @@ function formatDateForSleepApi(d: Date): string {
   return `${year}-${month}-${day} 06:00:00.000`;
 }
 
+function emptyLevelSeconds(): Record<SnooLevel, number> {
+  return { BASELINE: 0, LEVEL1: 0, LEVEL2: 0, LEVEL3: 0, LEVEL4: 0 };
+}
+
+function computeLevelSeconds(
+  detailed: DetailedLevelEntry[]
+): Record<SnooLevel, number> {
+  const out = emptyLevelSeconds();
+  for (const d of detailed) {
+    if ((LEVEL_ORDER as readonly string[]).includes(d.level)) {
+      out[d.level as SnooLevel] += d.stateDuration || 0;
+    }
+  }
+  return out;
+}
+
+function computePeakLevel(
+  levelSeconds: Record<SnooLevel, number>
+): SnooLevel | null {
+  for (let i = LEVEL_ORDER.length - 1; i >= 0; i--) {
+    const lvl = LEVEL_ORDER[i];
+    if (levelSeconds[lvl] > 0) return lvl;
+  }
+  return null;
+}
+
+/** Local hour (0-23) parsed from an API timestamp like "2026-07-10 21:35:00.000". */
+function localHour(startTime: string): number {
+  const m = /\s(\d{2}):/.exec(startTime);
+  return m ? parseInt(m[1], 10) : 12;
+}
+
+/**
+ * The three longest continuous overnight sleep stretches (seconds, desc).
+ *
+ * A "stretch" is one sleep session's total asleep time — the API groups the
+ * brief soothing bumps (level ups) that don't wake the baby into a single
+ * session, so we sum the asleep segments per sessionId. This matches how the
+ * API derives `longestSleep` (its value equals the largest such session sum).
+ * "Overnight" = a session that begins between 6pm and 7am local time — the 6pm
+ * start captures early bedtimes (babies here settle ~6:30pm) while excluding
+ * daytime naps (daytimeStart is 7am).
+ */
+function computeLongestStretches(levels: SessionLevel[]): number[] {
+  const bySession = new Map<string, { start: string; asleep: number }>();
+  for (const l of levels) {
+    const cur = bySession.get(l.sessionId) ?? {
+      start: l.startTime,
+      asleep: 0,
+    };
+    if (l.type === "asleep") cur.asleep += l.stateDuration || 0;
+    if (l.startTime < cur.start) cur.start = l.startTime;
+    bySession.set(l.sessionId, cur);
+  }
+
+  return Array.from(bySession.values())
+    .filter((s) => {
+      const h = localHour(s.start);
+      return h >= 18 || h < 7;
+    })
+    .map((s) => s.asleep)
+    .filter((asleep) => asleep >= 60)
+    .sort((a, b) => b - a)
+    .slice(0, 3);
+}
+
 export async function fetchSnooData(
   email: string,
   password: string,
@@ -171,6 +263,8 @@ export async function fetchSnooData(
           }
         );
 
+        const levelSeconds = computeLevelSeconds(session.detailedLevels || []);
+
         dailyData.push({
           date: date.toISOString().split("T")[0],
           totalSleep: session.totalSleep || 0,
@@ -180,6 +274,9 @@ export async function fetchSnooData(
           naps: session.naps || 0,
           nightWakings: session.nightWakings || 0,
           sessions: session.levels || [],
+          levelSeconds,
+          peakLevel: computePeakLevel(levelSeconds),
+          longestStretches: computeLongestStretches(session.levels || []),
         });
       } catch {
         dailyData.push({
@@ -191,6 +288,9 @@ export async function fetchSnooData(
           naps: 0,
           nightWakings: 0,
           sessions: [],
+          levelSeconds: emptyLevelSeconds(),
+          peakLevel: null,
+          longestStretches: [],
         });
       }
     }
