@@ -1,6 +1,7 @@
 const API_BASE = "https://api-us-east-1-prod.happiestbaby.com";
 const COGNITO_ENDPOINT = "https://cognito-idp.us-east-1.amazonaws.com/";
 const CLIENT_ID = "6kqofhc8hm394ielqdkvli0oea";
+const TIMEZONE = "Australia/Sydney";
 
 interface CognitoAuthResult {
   AuthenticationResult: {
@@ -81,9 +82,35 @@ export interface DailyData {
   longestStretches: number[];
 }
 
+/** Which of the three summary windows a stat block describes. */
+export type SummaryWindowKey = "yesterday" | "lastNight" | "today";
+
+/** Sleep stats derived for one of the three summary windows (local Sydney time). */
+export interface WindowStats {
+  key: SummaryWindowKey;
+  /** Display label, e.g. "Yesterday". */
+  label: string;
+  /** Time range label, e.g. "7am–7pm". */
+  rangeLabel: string;
+  /** Total time asleep within the window, in seconds. */
+  totalSleep: number;
+  /** Number of distinct sleep sessions (naps for day windows) within the window. */
+  sleepSessions: number;
+  /** Longest single continuous sleep stretch within the window, in seconds. */
+  longestStretch: number;
+  /** Derived wakings within the window (sleep sessions minus one). */
+  wakings: number;
+  /** Highest soothing level reached within the window (null if no data). */
+  peakLevel: SnooLevel | null;
+  /** Whether the window has elapsed at all (false for "today" before 7am). */
+  hasElapsed: boolean;
+}
+
 export interface TwinData {
   baby: SnooBaby;
   dailyData: DailyData[];
+  /** Yesterday / Last Night / Today stat blocks (in that order). */
+  windows: WindowStats[];
 }
 
 let cachedToken: string | null = null;
@@ -225,6 +252,155 @@ function computeLongestStretches(levels: SessionLevel[]): number[] {
     .slice(0, 3);
 }
 
+/**
+ * Parse an API local timestamp ("YYYY-MM-DD HH:MM:SS.mmm") into a comparable
+ * number. We deliberately read the wall-clock components and build a UTC epoch
+ * from them, so all timestamps and window bounds live in the same consistent
+ * "local wall clock" space regardless of the server's own timezone.
+ */
+function localMs(s: string): number {
+  const m = /(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(s);
+  if (!m) return NaN;
+  return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+}
+
+/** Current wall-clock time in the configured timezone as "YYYY-MM-DD HH:MM:SS". */
+function nowInTimezone(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const p: Record<string, string> = {};
+  for (const part of parts) p[part.type] = part.value;
+  // en-CA formats midnight as "24" for hour; normalise to "00".
+  const hour = p.hour === "24" ? "00" : p.hour;
+  return `${p.year}-${p.month}-${p.day} ${hour}:${p.minute}:${p.second}`;
+}
+
+function overlapSeconds(
+  aStart: number,
+  aEnd: number,
+  bStart: number,
+  bEnd: number
+): number {
+  return Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart)) / 1000;
+}
+
+/** Compute sleep stats for a single [winStart, winEnd) window from raw segments. */
+function computeWindowStats(
+  levels: SessionLevel[],
+  detailed: DetailedLevelEntry[],
+  winStart: number,
+  winEnd: number,
+  key: SummaryWindowKey,
+  label: string,
+  rangeLabel: string
+): WindowStats {
+  const hasElapsed = winEnd > winStart;
+  const bySession = new Map<string, number>();
+  let totalSleep = 0;
+
+  for (const l of levels) {
+    if (l.type !== "asleep") continue;
+    const s = localMs(l.startTime);
+    const ov = overlapSeconds(s, s + (l.stateDuration || 0) * 1000, winStart, winEnd);
+    if (ov > 0) {
+      totalSleep += ov;
+      bySession.set(l.sessionId, (bySession.get(l.sessionId) || 0) + ov);
+    }
+  }
+
+  const levelSeconds = emptyLevelSeconds();
+  for (const d of detailed) {
+    if (!(LEVEL_ORDER as readonly string[]).includes(d.level) || !d.startTime) {
+      continue;
+    }
+    const s = localMs(d.startTime);
+    levelSeconds[d.level as SnooLevel] += overlapSeconds(
+      s,
+      s + (d.stateDuration || 0) * 1000,
+      winStart,
+      winEnd
+    );
+  }
+
+  // Only count sessions with a meaningful amount of sleep in the window.
+  const sessionTotals = Array.from(bySession.values()).filter((v) => v >= 60);
+
+  return {
+    key,
+    label,
+    rangeLabel,
+    totalSleep: Math.round(totalSleep),
+    sleepSessions: sessionTotals.length,
+    longestStretch: Math.round(sessionTotals.length ? Math.max(...sessionTotals) : 0),
+    wakings: Math.max(0, sessionTotals.length - 1),
+    peakLevel: computePeakLevel(levelSeconds),
+    hasElapsed,
+  };
+}
+
+/** Shift a "YYYY-MM-DD" date string by a number of days. */
+function shiftDate(dateStr: string, deltaDays: number): string {
+  const d = new Date(`${dateStr}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + deltaDays);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Build the three summary windows (local time):
+ *   - Yesterday : 7am–7pm the day before
+ *   - Last Night: 7pm (yesterday) – 7am (today)
+ *   - Today     : 7am today – now
+ */
+function computeWindows(
+  levels: SessionLevel[],
+  detailed: DetailedLevelEntry[]
+): WindowStats[] {
+  const nowStr = nowInTimezone();
+  const nowMs = localMs(nowStr);
+  const today = nowStr.slice(0, 10);
+  const yesterday = shiftDate(today, -1);
+
+  const ms = (date: string, hhmmss: string) => localMs(`${date} ${hhmmss}`);
+
+  return [
+    computeWindowStats(
+      levels,
+      detailed,
+      ms(yesterday, "07:00:00"),
+      ms(yesterday, "19:00:00"),
+      "yesterday",
+      "Yesterday",
+      "7am–7pm"
+    ),
+    computeWindowStats(
+      levels,
+      detailed,
+      ms(yesterday, "19:00:00"),
+      ms(today, "07:00:00"),
+      "lastNight",
+      "Last Night",
+      "7pm–7am"
+    ),
+    computeWindowStats(
+      levels,
+      detailed,
+      ms(today, "07:00:00"),
+      Math.max(nowMs, ms(today, "07:00:00")),
+      "today",
+      "Today",
+      "7am–now"
+    ),
+  ];
+}
+
 export async function fetchSnooData(
   email: string,
   password: string,
@@ -244,6 +420,8 @@ export async function fetchSnooData(
   // For each baby, pull daily sleep data
   for (const baby of babies) {
     const dailyData: DailyData[] = [];
+    const allLevels: SessionLevel[] = [];
+    const allDetailed: DetailedLevelEntry[] = [];
     const now = new Date();
 
     for (let i = lookbackDays; i >= 0; i--) {
@@ -259,11 +437,13 @@ export async function fetchSnooData(
             detailedLevels: "true",
             levels: "true",
             startTime: formatDateForSleepApi(date),
-            timezone: "Australia/Sydney",
+            timezone: TIMEZONE,
           }
         );
 
         const levelSeconds = computeLevelSeconds(session.detailedLevels || []);
+        allLevels.push(...(session.levels || []));
+        allDetailed.push(...(session.detailedLevels || []));
 
         dailyData.push({
           date: date.toISOString().split("T")[0],
@@ -295,7 +475,11 @@ export async function fetchSnooData(
       }
     }
 
-    results.push({ baby, dailyData });
+    results.push({
+      baby,
+      dailyData,
+      windows: computeWindows(allLevels, allDetailed),
+    });
   }
 
   return results;

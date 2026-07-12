@@ -1,4 +1,10 @@
-import { TwinData, DailyData, SnooLevel, formatDuration } from "./snoo-client";
+import {
+  TwinData,
+  WindowStats,
+  SummaryWindowKey,
+  SnooLevel,
+  formatDuration,
+} from "./snoo-client";
 
 /** Like formatDuration but omits the hours segment when it's zero (e.g. "29m" not "0h 29m"). */
 function formatDurationCompact(seconds: number): string {
@@ -9,175 +15,110 @@ function formatDurationCompact(seconds: number): string {
   return `${h}h ${m}m`;
 }
 
-export interface TwinSummary {
-  name: string;
-  color: string;
-  date: string;
-  totalSleep: number;
-  nightSleep: number;
-  daySleep: number;
-  longestSleep: number;
-  naps: number;
-  nightWakings: number;
-  /** Change in total sleep vs the prior day, in seconds (null if no prior data) */
-  totalSleepDelta: number | null;
-  /** Highest soothing level reached (null if no data). */
-  peakLevel: SnooLevel | null;
-  /** The three longest overnight sleep stretches, in seconds (desc). */
-  longestStretches: number[];
-}
-
-/** Human-friendly phrase describing the peak soothing level reached. */
-function peakLevelPhrase(name: string, peak: SnooLevel | null): string | null {
+/** Short phrase describing the peak soothing level reached in a window. */
+function peakLevelPhrase(peak: SnooLevel | null): string | null {
   switch (peak) {
     case "BASELINE":
-      return `${name} stayed calm all day — the Snoo never needed to go above baseline.`;
+      return "The Snoo stayed at baseline.";
     case "LEVEL1":
-      return `${name} only needed gentle soothing — the Snoo peaked at Level 1.`;
+      return "The Snoo peaked at Level 1.";
     case "LEVEL2":
-      return `The Snoo escalated to Level 2 at its peak for ${name}.`;
+      return "The Snoo peaked at Level 2.";
     case "LEVEL3":
-      return `The Snoo escalated to Level 3 at its peak for ${name}.`;
+      return "The Snoo peaked at Level 3.";
     case "LEVEL4":
-      return `The Snoo reached its highest setting (Level 4) for ${name} at some point.`;
+      return "The Snoo reached Level 4.";
     default:
       return null;
   }
 }
 
-export interface DailySummary {
-  date: string | null;
-  twins: TwinSummary[];
-  /** Natural-language sentences describing the last 24 hours. */
+export interface WindowTwinStat {
+  name: string;
+  color: string;
+  stats: WindowStats;
+}
+
+export interface WindowSection {
+  key: SummaryWindowKey;
+  label: string;
+  rangeLabel: string;
+  twins: WindowTwinStat[];
+  /** Natural-language sentences describing this window. */
   sentences: string[];
 }
 
 const COLORS = ["blue", "pink"];
 
-function mostRecentValidIndex(daily: DailyData[]): number {
-  for (let i = daily.length - 1; i >= 0; i--) {
-    if (daily[i].totalSleep > 0) return i;
+function twinSentence(t: WindowTwinStat, isNight: boolean): string {
+  const s = t.stats;
+  if (!s.hasElapsed) {
+    return `${t.name}: this window hasn't started yet.`;
   }
-  return -1;
-}
-
-function formatDelta(deltaSeconds: number): string {
-  const abs = Math.abs(deltaSeconds);
-  const formatted = formatDurationCompact(abs);
-  if (deltaSeconds > 0) return `${formatted} more than the day before`;
-  return `${formatted} less than the day before`;
-}
-
-function humanDate(dateStr: string): string {
-  const d = new Date(`${dateStr}T00:00:00`);
-  return d.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-export function buildDailySummary(data: TwinData[]): DailySummary {
-  const twins: TwinSummary[] = [];
-
-  data.forEach((twin, i) => {
-    const idx = mostRecentValidIndex(twin.dailyData);
-    if (idx < 0) return;
-    const day = twin.dailyData[idx];
-    const prev = idx > 0 ? twin.dailyData[idx - 1] : null;
-    const totalSleepDelta =
-      prev && prev.totalSleep > 0 ? day.totalSleep - prev.totalSleep : null;
-
-    twins.push({
-      name: twin.baby.babyName || `Baby ${i + 1}`,
-      color: COLORS[i] || COLORS[0],
-      date: day.date,
-      totalSleep: day.totalSleep,
-      nightSleep: day.nightSleep,
-      daySleep: day.daySleep,
-      longestSleep: day.longestSleep,
-      naps: day.naps,
-      nightWakings: day.nightWakings,
-      totalSleepDelta,
-      peakLevel: day.peakLevel,
-      longestStretches: day.longestStretches,
-    });
-  });
-
-  if (twins.length === 0) {
-    return {
-      date: null,
-      twins: [],
-      sentences: ["No sleep data available for the last 24 hours yet."],
-    };
+  if (s.totalSleep < 60) {
+    return `${t.name}: no sleep recorded${isNight ? " overnight" : ""} yet.`;
   }
 
-  const sentences: string[] = [];
-
-  for (const t of twins) {
-    let s = `${t.name} slept ${formatDuration(t.totalSleep)} total — ${formatDuration(
-      t.nightSleep
-    )} overnight and ${formatDuration(t.daySleep)} across ${t.naps} ${
-      t.naps === 1 ? "nap" : "naps"
+  let str = `${t.name} slept ${formatDuration(s.totalSleep)}`;
+  if (isNight) {
+    str += ` with ${s.wakings} ${s.wakings === 1 ? "waking" : "wakings"}.`;
+  } else {
+    str += ` across ${s.sleepSessions} ${
+      s.sleepSessions === 1 ? "nap" : "naps"
     }.`;
-    s += ` Longest stretch was ${formatDuration(t.longestSleep)}, with ${
-      t.nightWakings
-    } night ${t.nightWakings === 1 ? "waking" : "wakings"}.`;
-    if (t.totalSleepDelta !== null && Math.abs(t.totalSleepDelta) >= 60) {
-      s += ` That's ${formatDelta(t.totalSleepDelta)}.`;
-    }
-    sentences.push(s);
-
-    // Top overnight stretches (6pm–7am)
-    if (t.longestStretches.length > 0) {
-      const list = t.longestStretches
-        .map((sec, i) => `#${i + 1} ${formatDurationCompact(sec)}`)
-        .join(", ");
-      sentences.push(`${t.name}'s longest overnight stretches: ${list}.`);
-    }
-
-    // Peak soothing level reached
-    const peak = peakLevelPhrase(t.name, t.peakLevel);
-    if (peak) sentences.push(peak);
   }
-
-  // Comparison sentence for twins
-  if (twins.length >= 2) {
-    const [a, b] = twins;
-    const diff = a.totalSleep - b.totalSleep;
-    if (Math.abs(diff) < 60) {
-      sentences.push(
-        `${a.name} and ${b.name} slept about the same amount today.`
-      );
-    } else {
-      const more = diff > 0 ? a : b;
-      const less = diff > 0 ? b : a;
-      sentences.push(
-        `${more.name} slept ${formatDurationCompact(
-          Math.abs(diff)
-        )} more than ${less.name} today.`
-      );
-    }
-
-    // Who woke more
-    const wakingDiff = a.nightWakings - b.nightWakings;
-    if (wakingDiff !== 0) {
-      const calmer = wakingDiff > 0 ? b : a;
-      const restless = wakingDiff > 0 ? a : b;
-      sentences.push(
-        `${calmer.name} had a calmer night (${calmer.nightWakings} wakings vs ${restless.name}'s ${restless.nightWakings}).`
-      );
-    }
+  if (s.longestStretch >= 60) {
+    str += ` Longest stretch ${formatDurationCompact(s.longestStretch)}.`;
   }
-
-  return {
-    date: twins[0].date,
-    twins,
-    sentences,
-  };
+  const peak = peakLevelPhrase(s.peakLevel);
+  if (peak) str += ` ${peak}`;
+  return str;
 }
 
-export function summaryDateLabel(date: string | null): string {
-  if (!date) return "Last 24 hours";
-  return humanDate(date);
+function comparisonSentence(twins: WindowTwinStat[]): string | null {
+  if (twins.length < 2) return null;
+  const [a, b] = twins;
+  if (!a.stats.hasElapsed || !b.stats.hasElapsed) return null;
+  if (a.stats.totalSleep < 60 && b.stats.totalSleep < 60) return null;
+
+  const diff = a.stats.totalSleep - b.stats.totalSleep;
+  if (Math.abs(diff) < 60) {
+    return `${a.name} and ${b.name} slept about the same.`;
+  }
+  const more = diff > 0 ? a : b;
+  const less = diff > 0 ? b : a;
+  return `${more.name} slept ${formatDurationCompact(
+    Math.abs(diff)
+  )} more than ${less.name}.`;
+}
+
+export function buildWindowSummary(data: TwinData[]): WindowSection[] {
+  const twinMeta = data.map((twin, i) => ({
+    name: twin.baby.babyName || `Baby ${i + 1}`,
+    color: COLORS[i] || COLORS[0],
+    windows: twin.windows || [],
+  }));
+
+  const order: SummaryWindowKey[] = ["yesterday", "lastNight", "today"];
+
+  return order.map((key) => {
+    const twins: WindowTwinStat[] = [];
+    let label = "";
+    let rangeLabel = "";
+
+    for (const meta of twinMeta) {
+      const stats = meta.windows.find((w) => w.key === key);
+      if (!stats) continue;
+      label = stats.label;
+      rangeLabel = stats.rangeLabel;
+      twins.push({ name: meta.name, color: meta.color, stats });
+    }
+
+    const isNight = key === "lastNight";
+    const sentences = twins.map((t) => twinSentence(t, isNight));
+    const cmp = comparisonSentence(twins);
+    if (cmp) sentences.push(cmp);
+
+    return { key, label, rangeLabel, twins, sentences };
+  });
 }
