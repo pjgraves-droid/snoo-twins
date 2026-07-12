@@ -11,6 +11,10 @@ async function main(): Promise<void> {
   console.log(`  trigger level : ${cfg.triggerLevel}`);
   console.log(`  sustain       : ${cfg.sustainSeconds}s`);
   console.log(`  cooldown      : ${cfg.cooldownSeconds}s`);
+  console.log(
+    `  alert window  : ${String(cfg.alertStartHour).padStart(2, "0")}:00–` +
+      `${String(cfg.alertEndHour).padStart(2, "0")}:00 ${cfg.alertTimezone}`
+  );
   console.log(`  poll interval : ${cfg.pollIntervalMs}ms`);
   console.log(
     `  device filter : ${cfg.deviceFilter.length ? cfg.deviceFilter.join(", ") : "(all)"}`

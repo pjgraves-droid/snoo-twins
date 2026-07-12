@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SnooMonitor } from "./monitor.js";
+import { SnooMonitor, isWithinAlertWindow } from "./monitor.js";
 import type { Config } from "./config.js";
 import type { Notifier } from "./notifier.js";
 import type { SnooClient, SnooDevice } from "./snoo.js";
@@ -24,6 +24,11 @@ function makeConfig(over: Partial<Config> = {}): Config {
     sustainSeconds: 30,
     cooldownSeconds: 300,
     deviceFilter: [],
+    // Default the window to always-on so behaviour tests are time-independent;
+    // the window itself is exercised by the dedicated tests below.
+    alertTimezone: "UTC",
+    alertStartHour: 0,
+    alertEndHour: 0,
     twilio: null,
     ...over,
   };
@@ -132,4 +137,44 @@ test("device filter limits which devices are watched", async () => {
   await monitor.tick(t0);
   await monitor.tick(t0 + 31 * SEC);
   assert.equal(notifier.sent.length, 0);
+});
+
+test("isWithinAlertWindow handles overnight, daytime and 24h windows", () => {
+  // Overnight window 22:00–07:00
+  assert.equal(isWithinAlertWindow(23, 22, 7), true);
+  assert.equal(isWithinAlertWindow(0, 22, 7), true);
+  assert.equal(isWithinAlertWindow(6, 22, 7), true);
+  assert.equal(isWithinAlertWindow(7, 22, 7), false); // end is exclusive
+  assert.equal(isWithinAlertWindow(21, 22, 7), false);
+  assert.equal(isWithinAlertWindow(12, 22, 7), false);
+  // Same-day window 9:00–17:00
+  assert.equal(isWithinAlertWindow(9, 9, 17), true);
+  assert.equal(isWithinAlertWindow(17, 9, 17), false);
+  assert.equal(isWithinAlertWindow(8, 9, 17), false);
+  // start === end means always on
+  assert.equal(isWithinAlertWindow(3, 0, 0), true);
+});
+
+test("does not fire outside the alert window", async () => {
+  // 09:00 UTC is outside a 22:00–07:00 UTC window.
+  const { client, notifier, monitor } = build(
+    makeConfig({ alertTimezone: "UTC", alertStartHour: 22, alertEndHour: 7 })
+  );
+  const t0 = Date.UTC(2026, 0, 1, 9, 0, 0);
+  client.next = [device("LEVEL2")];
+  await monitor.tick(t0);
+  await monitor.tick(t0 + 31 * SEC);
+  assert.equal(notifier.sent.length, 0);
+});
+
+test("fires inside the alert window", async () => {
+  // 02:00 UTC is inside a 22:00–07:00 UTC window.
+  const { client, notifier, monitor } = build(
+    makeConfig({ alertTimezone: "UTC", alertStartHour: 22, alertEndHour: 7 })
+  );
+  const t0 = Date.UTC(2026, 0, 1, 2, 0, 0);
+  client.next = [device("LEVEL2")];
+  await monitor.tick(t0); // arm
+  await monitor.tick(t0 + 31 * SEC); // crosses 30s
+  assert.equal(notifier.sent.length, 1);
 });

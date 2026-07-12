@@ -28,7 +28,9 @@ for each watched, online device:
 
 The default rule (matching the initial request): **alert when a Snoo is at
 `LEVEL2` continuously for ≥ 30 seconds**, then stay quiet for a cooldown window
-and re-arm once the level drops.
+and re-arm once the level drops. Alerts only fire during **quiet hours
+(10pm–7am, Australia/Sydney by default)** — outside that window the level is
+still logged but no call/SMS is placed.
 
 ## Setup
 
@@ -55,7 +57,14 @@ All via environment variables (see `.env.example`):
 | `SNOO_COOLDOWN_SECONDS` | `300` | min gap between alerts per device |
 | `SNOO_POLL_INTERVAL_MS` | `10000` | poll frequency |
 | `SNOO_DEVICE_FILTER` | (all) | comma list of serials/names to watch |
+| `SNOO_ALERT_TIMEZONE` | `Australia/Sydney` | IANA tz the window hours are read in |
+| `SNOO_ALERT_START_HOUR` | `22` | hour (0-23) the alert window opens (inclusive) |
+| `SNOO_ALERT_END_HOUR` | `7` | hour (0-23) the alert window closes (exclusive) |
 | `TWILIO_*` | (unset) | if set, sends real SMS/calls; if unset, **dry-run** (logs to console) |
+
+The alert window wraps past midnight when the start hour is greater than the
+end hour (e.g. `22`→`7` covers 22:00–06:59). Set the two hours equal for 24h
+alerting.
 
 ### Dry run
 

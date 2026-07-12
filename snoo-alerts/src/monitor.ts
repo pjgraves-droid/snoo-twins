@@ -7,6 +7,30 @@ import {
   type SnooDevice,
 } from "./snoo.js";
 
+/** Local hour (0-23) at `now` for the given IANA timezone. */
+export function hourInTimeZone(now: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(new Date(now));
+  return Number(parts.find((p) => p.type === "hour")?.value);
+}
+
+/**
+ * Whether `hour` falls in the [start, end) window. When start > end the window
+ * wraps past midnight (e.g. 22 → 7 covers 22:00–06:59). start === end means 24h.
+ */
+export function isWithinAlertWindow(
+  hour: number,
+  start: number,
+  end: number
+): boolean {
+  if (start === end) return true;
+  if (start < end) return hour >= start && hour < end;
+  return hour >= start || hour < end;
+}
+
 interface DeviceState {
   /** Wall-clock ms when the device was first observed continuously at the trigger level. */
   enteredTriggerAt: number | null;
@@ -59,7 +83,13 @@ export class SnooMonitor {
         state.lastLoggedLevel = level;
       }
 
-      const atTrigger = online && level === this.cfg.triggerLevel;
+      const inWindow = isWithinAlertWindow(
+        hourInTimeZone(now, this.cfg.alertTimezone),
+        this.cfg.alertStartHour,
+        this.cfg.alertEndHour
+      );
+      const atTrigger =
+        inWindow && online && level === this.cfg.triggerLevel;
 
       if (!atTrigger) {
         // Left the trigger level (or went offline): require a fresh sustained
