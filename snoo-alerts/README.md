@@ -28,7 +28,9 @@ for each watched, online device:
 
 The default rule (matching the initial request): **alert when a Snoo is at
 `LEVEL2` continuously for ≥ 30 seconds**, then stay quiet for a cooldown window
-and re-arm once the level drops.
+and re-arm once the level drops. Alerts only fire during **quiet hours
+(10pm–7am, Australia/Sydney by default)** — outside that window the level is
+still logged but no call/SMS is placed.
 
 ## Setup
 
@@ -55,7 +57,14 @@ All via environment variables (see `.env.example`):
 | `SNOO_COOLDOWN_SECONDS` | `300` | min gap between alerts per device |
 | `SNOO_POLL_INTERVAL_MS` | `10000` | poll frequency |
 | `SNOO_DEVICE_FILTER` | (all) | comma list of serials/names to watch |
+| `SNOO_ALERT_TIMEZONE` | `Australia/Sydney` | IANA tz the window hours are read in |
+| `SNOO_ALERT_START_HOUR` | `22` | hour (0-23) the alert window opens (inclusive) |
+| `SNOO_ALERT_END_HOUR` | `7` | hour (0-23) the alert window closes (exclusive) |
 | `TWILIO_*` | (unset) | if set, sends real SMS/calls; if unset, **dry-run** (logs to console) |
+
+The alert window wraps past midnight when the start hour is greater than the
+end hour (e.g. `22`→`7` covers 22:00–06:59). Set the two hours equal for 24h
+alerting.
 
 ### Dry run
 
@@ -102,13 +111,46 @@ sudo systemctl daemon-reload && sudo systemctl enable --now snoo-alerts
 journalctl -u snoo-alerts -f                 # watch alerts
 ```
 
-### Option C — Railway / Fly / Render (managed, no server to manage)
+### Option C — Railway (recommended managed host)
 
-Point the platform at the `snoo-alerts/` directory (it auto-detects the
-Dockerfile), set the env vars in the dashboard, and deploy it as a **worker /
-background service** (not a web service — there's no HTTP port). Set the restart
-policy to always-on. On Railway, for example: New Project → Deploy from repo →
-set Root Directory to `snoo-alerts` → add variables → deploy.
+The repo ships a `snoo-alerts/railway.json` that pins the Dockerfile builder and
+an always-on restart policy, so deploying is just "point Railway at this folder
+and add the env vars." There's no HTTP port — it runs purely as a background
+worker.
+
+**Via the Railway dashboard:**
+
+1. New Project → **Deploy from GitHub repo** → pick `pjgraves-droid/snoo-twins`.
+2. Open the service → **Settings** → set **Root Directory** to `snoo-alerts`.
+   (This is what makes `railway.json` and the Dockerfile take effect.)
+3. **Variables** → add at minimum:
+   - `HAPPIESTBABY_EMAIL`
+   - `HAPPIESTBABY_PASSWORD`
+
+   Leave the `TWILIO_*` vars unset for now — the worker runs in **dry-run**
+   (console) mode until they're provided. Add them later to go live (see the
+   Twilio section in `.env.example`).
+4. Deploy. Watch the **Deploy Logs** — you should see both Snoos and their
+   current levels within ~10s.
+
+**Via the Railway CLI** (from the repo root):
+
+```bash
+npm i -g @railway/cli
+railway login
+railway init                       # create/link a project
+railway up --service snoo-alerts ./snoo-alerts
+railway variables set HAPPIESTBABY_EMAIL=you@example.com HAPPIESTBABY_PASSWORD=...
+```
+
+> No public URL is needed or created — don't add a domain. If Railway prompts to
+> expose a port, skip it; this is a worker, not a web service.
+
+### Option D — Fly / Render
+
+Same idea: point the platform at the `snoo-alerts/` directory (it auto-detects
+the Dockerfile), set the env vars in the dashboard, and deploy it as a **worker /
+background service** with an always-on restart policy.
 
 ### Sanity check before going live
 

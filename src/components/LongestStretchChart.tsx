@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   BarChart,
   Bar,
@@ -12,6 +13,7 @@ import {
   TooltipProps,
 } from "recharts";
 import { DailyData } from "@/lib/snoo-client";
+import ChartModeToggle, { ChartMode } from "./ChartModeToggle";
 
 interface LongestStretchChartProps {
   datasets: { label: string; data: DailyData[]; color: string }[];
@@ -38,6 +40,8 @@ function CustomTooltip({ active, payload, label }: TooltipProps<number, string>)
 }
 
 export default function LongestStretchChart({ datasets }: LongestStretchChartProps) {
+  const [mode, setMode] = useState<ChartMode>("grouped");
+  const stacked = mode === "stacked";
   const dateMap: Record<string, Record<string, number>> = {};
   for (const ds of datasets) {
     for (const d of ds.data) {
@@ -63,9 +67,12 @@ export default function LongestStretchChart({ datasets }: LongestStretchChartPro
 
   return (
     <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl sm:rounded-2xl p-3 sm:p-6">
-      <h3 className="text-sm sm:text-lg font-semibold text-zinc-100 mb-2 sm:mb-4">
-        Longest Sleep Stretch
-      </h3>
+      <div className="flex items-center justify-between gap-2 mb-2 sm:mb-4">
+        <h3 className="text-sm sm:text-lg font-semibold text-zinc-100">
+          Longest Sleep Stretch
+        </h3>
+        <ChartModeToggle mode={mode} onChange={setMode} />
+      </div>
       <div className="h-[200px] sm:h-[300px]">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={chartData} barGap={4}>
@@ -92,8 +99,9 @@ export default function LongestStretchChart({ datasets }: LongestStretchChartPro
               key={ds.label}
               dataKey={ds.label}
               fill={ds.color}
+              stackId={stacked ? "cmp" : undefined}
               radius={[4, 4, 0, 0]}
-              maxBarSize={20}
+              maxBarSize={stacked ? 28 : 20}
             />
           ))}
         </BarChart>

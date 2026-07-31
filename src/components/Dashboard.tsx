@@ -10,8 +10,9 @@ import LongestStretchChart from "./LongestStretchChart";
 import NapCountChart from "./NapCountChart";
 import StatCard from "./StatCard";
 import DailySummary from "./DailySummary";
+import AiSummary from "./AiSummary";
 import { TwinData, formatDuration } from "@/lib/snoo-client";
-import { Moon, Sun, Baby, RefreshCw } from "lucide-react";
+import { Moon, Sun, Baby, RefreshCw, Phone } from "lucide-react";
 
 const COLORS = ["#3b82f6", "#ec4899"];
 const COLOR_NAMES = ["blue", "pink"] as const;
@@ -44,6 +45,35 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(14);
+  const [callStatus, setCallStatus] = useState<
+    "idle" | "calling" | "ok" | "error"
+  >("idle");
+  const [callMsg, setCallMsg] = useState<string | null>(null);
+
+  const testCall = useCallback(async () => {
+    if (callStatus === "calling") return;
+    setCallStatus("calling");
+    setCallMsg(null);
+    try {
+      const res = await fetch("/api/test-call", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) {
+        setCallStatus("error");
+        setCallMsg(json.error || "Call failed");
+      } else {
+        setCallStatus("ok");
+        setCallMsg(`Calling ${json.to}\u2026 your phone should ring shortly.`);
+      }
+    } catch (err) {
+      setCallStatus("error");
+      setCallMsg(err instanceof Error ? err.message : "Call failed");
+    } finally {
+      setTimeout(() => {
+        setCallStatus("idle");
+        setCallMsg(null);
+      }, 8000);
+    }
+  }, [callStatus]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -151,6 +181,21 @@ export default function Dashboard() {
               <option value={90}>90 days</option>
             </select>
             <button
+              onClick={testCall}
+              disabled={callStatus === "calling"}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/90 border border-indigo-500 text-white text-sm font-medium hover:bg-indigo-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Place a test voice call to verify the alert pipeline"
+            >
+              <Phone className="w-4 h-4" />
+              <span className="hidden sm:inline">
+                {callStatus === "calling"
+                  ? "Calling\u2026"
+                  : callStatus === "ok"
+                  ? "Call placed"
+                  : "Test Voice"}
+              </span>
+            </button>
+            <button
               onClick={fetchData}
               className="p-2 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors"
               title="Refresh"
@@ -161,8 +206,23 @@ export default function Dashboard() {
         </div>
       </header>
 
+      {callMsg && (
+        <div
+          className={`px-6 py-2 text-sm text-center ${
+            callStatus === "error"
+              ? "bg-red-950/60 text-red-300 border-b border-red-900"
+              : "bg-emerald-950/60 text-emerald-300 border-b border-emerald-900"
+          }`}
+        >
+          {callMsg}
+        </div>
+      )}
+
       <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6 sm:space-y-8">
-        {/* 24h written summary */}
+        {/* AI narrative summary */}
+        <AiSummary data={data} />
+
+        {/* Windowed written summary */}
         <DailySummary data={data} />
 
         {/* Stats per twin */}
