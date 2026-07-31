@@ -153,26 +153,26 @@ export default function Dashboard() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       {/* Header */}
       <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
-              <Moon className="w-6 h-6 text-blue-400" />
-              <Moon className="w-6 h-6 text-pink-400" />
+              <Moon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />
+              <Moon className="w-5 h-5 sm:w-6 sm:h-6 text-pink-400" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight">
-                Snoo Twins Dashboard
+              <h1 className="text-base sm:text-xl font-bold tracking-tight">
+                Snoo Twins
               </h1>
-              <p className="text-zinc-500 text-xs">
+              <p className="text-zinc-500 text-[10px] sm:text-xs hidden sm:block">
                 {twins.map((t) => t.label).join(" & ")} &middot; Sleep Analytics
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <select
               value={days}
               onChange={(e) => setDays(Number(e.target.value))}
-              className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="bg-zinc-800 border border-zinc-700 rounded-lg px-2 sm:px-3 py-1.5 text-xs sm:text-sm text-zinc-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value={7}>7 days</option>
               <option value={14}>14 days</option>
@@ -218,7 +218,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6 sm:space-y-8">
         {/* AI narrative summary */}
         <AiSummary data={data} />
 
@@ -231,19 +231,19 @@ export default function Dashboard() {
           const colorName = twin.colorName;
           return (
             <section key={idx}>
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
                 <Baby
-                  className="w-5 h-5"
+                  className="w-4 h-4 sm:w-5 sm:h-5"
                   style={{ color: twin.color }}
                 />
-                <h2 className="text-lg font-semibold">{twin.label}</h2>
+                <h2 className="text-base sm:text-lg font-semibold">{twin.label}</h2>
                 {twin.baby.birthDate && (
-                  <span className="text-zinc-600 text-xs ml-2">
+                  <span className="text-zinc-600 text-[10px] sm:text-xs ml-1 sm:ml-2">
                     DOB: {twin.baby.birthDate}
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+              <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 mb-4 sm:mb-6">
                 <StatCard
                   label="Avg Total Sleep"
                   value={formatDuration(avg.avgTotalSleep)}
@@ -304,11 +304,11 @@ export default function Dashboard() {
         {/* Comparison charts */}
         {twins.length >= 2 && (
           <section>
-            <div className="flex items-center gap-2 mb-4">
-              <Sun className="w-5 h-5 text-amber-400" />
-              <h2 className="text-lg font-semibold">Twin Comparison</h2>
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
+              <h2 className="text-base sm:text-lg font-semibold">Twin Comparison</h2>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               <TotalSleepChart datasets={datasets} />
               <WakingsChart datasets={datasets} />
               <LongestStretchChart datasets={datasets} />
@@ -318,7 +318,7 @@ export default function Dashboard() {
         )}
       </main>
 
-      <footer className="border-t border-zinc-800 py-4 text-center text-zinc-600 text-xs">
+      <footer className="border-t border-zinc-800 py-3 sm:py-4 text-center text-zinc-600 text-[10px] sm:text-xs">
         Data from Happiest Baby Snoo API &middot; Charts update on refresh
       </footer>
     </div>

@@ -58,23 +58,26 @@ export default function WakingsChart({ datasets }: WakingsChartProps) {
     });
 
   return (
-    <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-      <h3 className="text-lg font-semibold text-zinc-100 mb-4">
+    <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl sm:rounded-2xl p-3 sm:p-6">
+      <h3 className="text-sm sm:text-lg font-semibold text-zinc-100 mb-2 sm:mb-4">
         Night Wakings Comparison
       </h3>
-      <ResponsiveContainer width="100%" height={300}>
+      <div className="h-[200px] sm:h-[300px]">
+      <ResponsiveContainer width="100%" height="100%">
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#333" />
           <XAxis
             dataKey="date"
             stroke="#888"
-            fontSize={11}
+            fontSize={10}
             tickLine={false}
             interval="preserveStartEnd"
+            tick={{ fontSize: 9 }}
           />
           <YAxis
             stroke="#888"
-            fontSize={11}
+            fontSize={10}
+            width={30}
             tickLine={false}
             allowDecimals={false}
           />
@@ -93,6 +96,7 @@ export default function WakingsChart({ datasets }: WakingsChartProps) {
           ))}
         </LineChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }
